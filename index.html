@@ -1,1008 +1,971 @@
-<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
-<html>
+<!DOCTYPE html>
+<html lang="zh-TW">
 <head>
-  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-  <meta http-equiv="Content-Style-Type" content="text/css">
-  <title></title>
-  <meta name="Generator" content="Cocoa HTML Writer">
-  <meta name="CocoaVersion" content="2685.3">
-  <style type="text/css">
-    p.p1 {margin: 0.0px 0.0px 0.0px 0.0px; font: 12.0px Helvetica}
-    p.p2 {margin: 0.0px 0.0px 0.0px 0.0px; font: 12.0px Helvetica; min-height: 14.0px}
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🚀 火箭發射音量儀表板</title>
+<style>
+/* ==========================================================================
+   1. 全域變數與基礎設定 (Global Variables & Reset)
+   ========================================================================== */
+:root {
+    --bg-color: #0b0d19;
+    --card-bg: rgba(23, 27, 51, 0.85);
+    --accent-green: #10b981;
+    --accent-red: #ef4444;
+    --accent-yellow: #f59e0b;
+    --primary-blue: #3b82f6;
+    --text-main: #f3f4f6;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    user-select: none;
+}
+
+body {
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background-color: var(--bg-color);
+    color: var(--text-main);
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+}
+
+/* ==========================================================================
+   2. 背景動態光圈與星空效果 (Background Effects)
+   ========================================================================== */
+.bg-overlay {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    transition: box-shadow 0.3s ease, background 0.3s ease;
+    z-index: 1;
+}
+
+/* 太吵時：畫面邊緣閃爍紅光 */
+.bg-overlay.warning {
+    box-shadow: inset 0 0 100px rgba(239, 68, 68, 0.6);
+    animation: flash-red 0.8s infinite alternate;
+}
+
+/* 安靜集氣時：綠色軟光暈 */
+.bg-overlay.charging {
+    box-shadow: inset 0 0 80px rgba(16, 185, 129, 0.25);
+}
+
+@keyframes flash-red {
+    0% { box-shadow: inset 0 0 40px rgba(239, 68, 68, 0.3); }
+    100% { box-shadow: inset 0 0 120px rgba(239, 68, 68, 0.8); }
+}
+
+/* ==========================================================================
+   3. 頂部控制列 (Header Layout)
+   ========================================================================== */
+header {
+    position: relative;
+    z-index: 10;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 1.5rem;
+    background: var(--card-bg);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.launch-counter {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: #fbbf24;
+}
+
+.btn-reset-counter {
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: #9ca3af;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.btn-reset-counter:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+}
+
+.top-controls {
+    display: flex;
+    gap: 0.75rem;
+}
+
+.btn {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: #fff;
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    transition: all 0.2s;
+}
+
+.btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+    transform: translateY(-1px);
+}
+
+/* ==========================================================================
+   4. 主舞台區 (Rocket & Launchpad Visuals)
+   ========================================================================== */
+main {
+    position: relative;
+    z-index: 5;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.stage {
+    position: relative;
+    width: 320px;
+    height: 380px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+}
+
+/* 火箭包裹容器 (發射動畫用) */
+.rocket-wrapper {
+    position: absolute;
+    bottom: 25px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    transition: transform 0.1s linear;
+}
+
+/* 火箭升空 Keyframe 動畫 */
+.rocket-wrapper.launching {
+    animation: rocket-launch 3s ease-in forwards;
+}
+
+@keyframes rocket-launch {
+    0% { transform: translateY(0) scale(1); }
+    15% { transform: translateY(-15px) scale(1.02); }
+    100% { transform: translateY(-130vh) scale(0.7); }
+}
+
+/* 火箭 SVG 繪製 */
+.rocket-svg {
+    width: 110px;
+    height: 150px;
+    filter: drop-shadow(0 10px 15px rgba(0,0,0,0.5));
+}
+
+/* 動態噴射火焰 */
+.flame-container {
+    width: 36px;
+    height: 0px;
+    position: relative;
+    display: flex;
+    justify-content: center;
+    overflow: visible;
+    transition: height 0.15s ease-out;
+}
+
+.flame {
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(to bottom, #fef08a, #f97316, #ef4444, transparent);
+    border-radius: 50% 50% 20% 20%;
+    filter: blur(2px);
+    box-shadow: 0 0 20px #f97316;
+    animation: flame-flicker 0.1s infinite alternate;
+}
+
+@keyframes flame-flicker {
+    0% { transform: scaleX(0.92); }
+    100% { transform: scaleX(1.08); }
+}
+
+/* 發射台底座 */
+.launchpad-base {
+    width: 200px;
+    height: 18px;
+    background: #374151;
+    border-radius: 9px 9px 0 0;
+    border-top: 3px solid #6b7280;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+}
+
+/* 狀態提示標籤 */
+.status-badge {
+    margin-top: 1.5rem;
+    padding: 0.6rem 1.5rem;
+    border-radius: 999px;
+    font-size: 1.2rem;
+    font-weight: bold;
+    letter-spacing: 1px;
+    background: var(--card-bg);
+    border: 1px solid rgba(255,255,255,0.1);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    transition: all 0.3s;
+}
+
+.status-badge.charging {
+    color: #34d399;
+    border-color: rgba(52, 211, 153, 0.4);
+}
+
+.status-badge.warning {
+    color: #f87171;
+    border-color: rgba(248, 113, 113, 0.4);
+}
+
+.status-badge.ready {
+    color: #fbbf24;
+    border-color: rgba(251, 191, 36, 0.6);
+    animation: pulse-border 1s infinite alternate;
+}
+
+@keyframes pulse-border {
+    0% { box-shadow: 0 0 5px #fbbf24; }
+    100% { box-shadow: 0 0 20px #fbbf24; }
+}
+
+/* 手動點火發射按鈕 */
+.btn-fire {
+    display: none;
+    margin-top: 1.2rem;
+    padding: 0.8rem 2.5rem;
+    font-size: 1.4rem;
+    font-weight: 800;
+    color: #fff;
+    background: linear-gradient(135deg, #f59e0b, #ef4444);
+    border: none;
+    border-radius: 50px;
+    cursor: pointer;
+    box-shadow: 0 0 25px rgba(239, 68, 68, 0.6);
+    animation: button-glow 1.2s infinite alternate;
+    z-index: 20;
+}
+
+@keyframes button-glow {
+    0% { transform: scale(1); box-shadow: 0 0 15px rgba(245, 158, 11, 0.5); }
+    100% { transform: scale(1.06); box-shadow: 0 0 30px rgba(239, 68, 68, 0.9); }
+}
+
+/* ==========================================================================
+   5. 底部數據儀表區 (Footer Dashboard)
+   ========================================================================== */
+footer {
+    position: relative;
+    z-index: 10;
+    padding: 1.25rem 2rem;
+    background: var(--card-bg);
+    backdrop-filter: blur(8px);
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.gauges-container {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+}
+
+.gauge-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.gauge-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.9rem;
+    color: #9ca3af;
+    font-weight: 600;
+}
+
+.progress-bar-bg {
+    height: 22px;
+    background: rgba(0, 0, 0, 0.4);
+    border-radius: 11px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    position: relative;
+}
+
+.progress-bar-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #3b82f6, #10b981);
+    border-radius: 11px;
+    transition: width 0.1s linear;
+}
+
+/* 即時音量量表條 */
+.volume-meter-fill {
+    height: 100%;
+    width: 0%;
+    background: var(--accent-green);
+    border-radius: 11px;
+    transition: width 0.05s ease-out, background-color 0.2s;
+}
+
+.volume-meter-fill.exceeded {
+    background: var(--accent-red);
+}
+
+/* 門檻指示刻度線 */
+.threshold-line {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: #fbbf24;
+    box-shadow: 0 0 6px #fbbf24;
+    z-index: 2;
+}
+
+/* ==========================================================================
+   6. 懸浮視窗 (Modals, Overlays & Banner)
+   ========================================================================== */
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.75);
+    backdrop-filter: blur(6px);
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s;
+}
+
+.modal-overlay.active {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.modal-card {
+    background: #1f2937;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 16px;
+    padding: 2rem;
+    width: 90%;
+    max-width: 460px;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.modal-title {
+    font-size: 1.3rem;
+    font-weight: bold;
+    color: #fff;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.setting-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.setting-label {
+    font-size: 0.95rem;
+    color: #d1d5db;
+    display: flex;
+    justify-content: space-between;
+}
+
+input[type=range] {
+    width: 100%;
+    height: 6px;
+    background: #374151;
+    border-radius: 3px;
+    accent-color: var(--primary-blue);
+    cursor: pointer;
+}
+
+.time-options {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.btn-time {
+    flex: 1;
+    padding: 0.5rem;
+    background: #374151;
+    border: 1px solid transparent;
+    color: #9ca3af;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: bold;
+}
+
+.btn-time.active {
+    background: var(--primary-blue);
+    color: #fff;
+    border-color: #60a5fa;
+}
+
+/* 慶祝畫面 Modal */
+.celebration-modal {
+    text-align: center;
+}
+
+.celebration-title {
+    font-size: 2rem;
+    color: #fbbf24;
+    margin-bottom: 0.5rem;
+}
+
+/* 倒數大字 Overlay */
+.countdown-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 30;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10rem;
+    font-weight: 900;
+    color: #fbbf24;
+    text-shadow: 0 0 40px rgba(251, 191, 36, 0.8);
+    pointer-events: none;
+    opacity: 0;
+    transition: transform 0.2s, opacity 0.2s;
+}
+
+.countdown-overlay.show {
+    opacity: 1;
+    transform: scale(1.1);
+}
+
+/* 錯誤訊息 Banner (麥克風權限) */
+.error-banner {
+    position: fixed;
+    top: 80px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(220, 38, 38, 0.95);
+    color: white;
+    padding: 0.8rem 1.5rem;
+    border-radius: 8px;
+    font-weight: bold;
+    z-index: 200;
+    box-shadow: 0 10px 20px rgba(0,0,0,0.4);
+    display: none;
+    align-items: center;
+    gap: 0.5rem;
+}
+</style>
 </head>
 <body>
-<p class="p1">&lt;!DOCTYPE html&gt;</p>
-<p class="p1">&lt;html lang="zh-TW"&gt;</p>
-<p class="p1">&lt;head&gt;</p>
-<p class="p1"><span class="Apple-converted-space">  </span>&lt;meta charset="UTF-8"&gt;</p>
-<p class="p1"><span class="Apple-converted-space">  </span>&lt;meta name="viewport" content="width=device-width, initial-scale=1.0"&gt;<span class="Apple-converted-space"> </span></p>
-<p class="p1"><span class="Apple-converted-space">  </span>&lt;title&gt;🚀 火箭發射音量儀表板&lt;/title&gt;</p>
-<p class="p1"><span class="Apple-converted-space">  </span>&lt;style&gt;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>/* ==========================================================================</p>
-<p class="p1"><span class="Apple-converted-space">       </span>1. 全域變數與基礎設定 (Global Variables &amp; Reset)</p>
-<p class="p1"><span class="Apple-converted-space">       </span>========================================================================== */</p>
-<p class="p1"><span class="Apple-converted-space">    </span>:root {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>--bg-color: #0b0d19;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>--card-bg: rgba(23, 27, 51, 0.85);</p>
-<p class="p1"><span class="Apple-converted-space">      </span>--accent-green: #10b981;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>--accent-red: #ef4444;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>--accent-yellow: #f59e0b;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>--primary-blue: #3b82f6;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>--text-main: #f3f4f6;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">    </span>* {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>box-sizing: border-box;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>margin: 0;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>padding: 0;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>user-select: none;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">    </span>body {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>background-color: var(--bg-color);</p>
-<p class="p1"><span class="Apple-converted-space">      </span>color: var(--text-main);</p>
-<p class="p1"><span class="Apple-converted-space">      </span>height: 100vh;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>overflow: hidden;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>display: flex;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>flex-direction: column;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>position: relative;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">    </span>/* ==========================================================================</p>
-<p class="p1"><span class="Apple-converted-space">       </span>2. 背景動態光圈與星空效果 (Background Effects)</p>
-<p class="p1"><span class="Apple-converted-space">       </span>========================================================================== */</p>
-<p class="p1"><span class="Apple-converted-space">    </span>.bg-overlay {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>position: absolute;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>inset: 0;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>pointer-events: none;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>transition: box-shadow 0.3s ease, background 0.3s ease;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>z-index: 1;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><span class="Apple-converted-space">    </span></p>
-<p class="p1"><span class="Apple-converted-space">    </span>/* 太吵時：畫面邊緣閃爍紅光 */</p>
-<p class="p1"><span class="Apple-converted-space">    </span>.bg-overlay.warning {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>box-shadow: inset 0 0 100px rgba(239, 68, 68, 0.6);</p>
-<p class="p1"><span class="Apple-converted-space">      </span>animation: flash-red 0.8s infinite alternate;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">    </span>/* 安靜集氣時：綠色軟光暈 */</p>
-<p class="p1"><span class="Apple-converted-space">    </span>.bg-overlay.charging {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>box-shadow: inset 0 0 80px rgba(16, 185, 129, 0.25);</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">    </span>@keyframes flash-red {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>0% { box-shadow: inset 0 0 40px rgba(239, 68, 68, 0.3); }</p>
-<p class="p1"><span class="Apple-converted-space">      </span>100% { box-shadow: inset 0 0 120px rgba(239, 68, 68, 0.8); }</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">    </span>/* ==========================================================================</p>
-<p class="p1"><span class="Apple-converted-space">       </span>3. 頂部控制列 (Header Layout)</p>
-<p class="p1"><span class="Apple-converted-space">       </span>========================================================================== */</p>
-<p class="p1"><span class="Apple-converted-space">    </span>header {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>position: relative;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>z-index: 10;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>display: flex;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>justify-content: space-between;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>align-items: center;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>padding: 1rem 1.5rem;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>background: var(--card-bg);</p>
-<p class="p1"><span class="Apple-converted-space">      </span>backdrop-filter: blur(8px);</p>
-<p class="p1"><span class="Apple-converted-space">      </span>border-bottom: 1px solid rgba(255, 255, 255, 0.1);</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">    </span>.launch-counter {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>display: flex;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>align-items: center;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>gap: 0.75rem;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>font-size: 1.5rem;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>font-weight: bold;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>color: #fbbf24;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">    </span>.btn-reset-counter {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>background: transparent;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>border: 1px solid rgba(255, 255, 255, 0.2);</p>
-<p class="p1"><span class="Apple-converted-space">      </span>color: #9ca3af;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>padding: 0.25rem 0.5rem;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>border-radius: 4px;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>font-size: 0.8rem;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>cursor: pointer;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>transition: background 0.2s;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p1"><span class="Apple-converted-space">    </span>.btn-reset-counter:hover {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>background: rgba(255, 255, 255, 0.1);</p>
-<p class="p1"><span class="Apple-converted-space">      </span>color: #fff;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">    </span>.top-controls {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>display: flex;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>gap: 0.75rem;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">    </span>.btn {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>background: rgba(255, 255, 255, 0.1);</p>
-<p class="p1"><span class="Apple-converted-space">      </span>border: 1px solid rgba(255, 255, 255, 0.2);</p>
-<p class="p1"><span class="Apple-converted-space">      </span>color: #fff;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>padding: 0.5rem 1rem;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>border-radius: 8px;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>font-size: 0.95rem;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>font-weight: 600;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>cursor: pointer;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>display: flex;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>align-items: center;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>gap: 0.5rem;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>transition: all 0.2s;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p1"><span class="Apple-converted-space">    </span>.btn:hover {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>background: rgba(255, 255, 255, 0.2);</p>
-<p class="p1"><span class="Apple-converted-space">      </span>transform: translateY(-1px);</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">    </span>/* ==========================================================================</p>
-<p class="p1"><span class="Apple-converted-space">       </span>4. 主舞台區 (Rocket &amp; Launchpad Visuals)</p>
-<p class="p1"><span class="Apple-converted-space">       </span>========================================================================== */</p>
-<p class="p1"><span class="Apple-converted-space">    </span>main {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>position: relative;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>z-index: 5;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>flex: 1;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>display: flex;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>flex-direction: column;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>align-items: center;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>justify-content: center;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">    </span>.stage {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>position: relative;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>width: 320px;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>height: 380px;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>display: flex;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>flex-direction: column;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>align-items: center;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>justify-content: flex-end;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">    </span>/* 火箭包裹容器 (發射動畫用) */</p>
-<p class="p1"><span class="Apple-converted-space">    </span>.rocket-wrapper {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>position: absolute;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>bottom: 25px;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>display: flex;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>flex-direction: column;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>align-items: center;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>transition: transform 0.1s linear;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">    </span>/* 火箭升空 Keyframe 動畫 */</p>
-<p class="p1"><span class="Apple-converted-space">    </span>.rocket-wrapper.launching {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>animation: rocket-launch 3s ease-in forwards;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">    </span>@keyframes rocket-launch {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>0% { transform: translateY(0) scale(1); }</p>
-<p class="p1"><span class="Apple-converted-space">      </span>15% { transform: translateY(-15px) scale(1.02); }</p>
-<p class="p1"><span class="Apple-converted-space">      </span>100% { transform: translateY(-130vh) scale(0.7); }</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">    </span>/* 火箭 SVG 繪製 */</p>
-<p class="p1"><span class="Apple-converted-space">    </span>.rocket-svg {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>width: 110px;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>height: 150px;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>filter: drop-shadow(0 10px 15px rgba(0,0,0,0.5));</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">    </span>/* 動態噴射火焰 */</p>
-<p class="p1"><span class="Apple-converted-space">    </span>.flame-container {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>width: 36px;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>height: 0px;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>position: relative;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>display: flex;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>justify-content: center;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>overflow: visible;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>transition: height 0.15s ease-out;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">    </span>.flame {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>width: 100%;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>height: 100%;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>background: linear-gradient(to bottom, #fef08a, #f97316, #ef4444, transparent);</p>
-<p class="p1"><span class="Apple-converted-space">      </span>border-radius: 50% 50% 20% 20%;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>filter: blur(2px);</p>
-<p class="p1"><span class="Apple-converted-space">      </span>box-shadow: 0 0 20px #f97316;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>animation: flame-flicker 0.1s infinite alternate;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">    </span>@keyframes flame-flicker {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>0% { transform: scaleX(0.92); }</p>
-<p class="p1"><span class="Apple-converted-space">      </span>100% { transform: scaleX(1.08); }</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">    </span>/* 發射台底座 */</p>
-<p class="p1"><span class="Apple-converted-space">    </span>.launchpad-base {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>width: 200px;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>height: 18px;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>background: #374151;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>border-radius: 9px 9px 0 0;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>border-top: 3px solid #6b7280;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>box-shadow: 0 5px 15px rgba(0,0,0,0.5);</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">    </span>/* 狀態提示標籤 */</p>
-<p class="p1"><span class="Apple-converted-space">    </span>.status-badge {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>margin-top: 1.5rem;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>padding: 0.6rem 1.5rem;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>border-radius: 999px;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>font-size: 1.2rem;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>font-weight: bold;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>letter-spacing: 1px;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>background: var(--card-bg);</p>
-<p class="p1"><span class="Apple-converted-space">      </span>border: 1px solid rgba(255,255,255,0.1);</p>
-<p class="p1"><span class="Apple-converted-space">      </span>box-shadow: 0 4px 12px rgba(0,0,0,0.3);</p>
-<p class="p1"><span class="Apple-converted-space">      </span>transition: all 0.3s;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">    </span>.status-badge.charging {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>color: #34d399;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>border-color: rgba(52, 211, 153, 0.4);</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p1"><span class="Apple-converted-space">    </span>.status-badge.warning {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>color: #f87171;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>border-color: rgba(248, 113, 113, 0.4);</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p1"><span class="Apple-converted-space">    </span>.status-badge.ready {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>color: #fbbf24;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>border-color: rgba(251, 191, 36, 0.6);</p>
-<p class="p1"><span class="Apple-converted-space">      </span>animation: pulse-border 1s infinite alternate;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">    </span>@keyframes pulse-border {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>0% { box-shadow: 0 0 5px #fbbf24; }</p>
-<p class="p1"><span class="Apple-converted-space">      </span>100% { box-shadow: 0 0 20px #fbbf24; }</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">    </span>/* 手動點火發射按鈕 */</p>
-<p class="p1"><span class="Apple-converted-space">    </span>.btn-fire {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>display: none;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>margin-top: 1.2rem;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>padding: 0.8rem 2.5rem;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>font-size: 1.4rem;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>font-weight: 800;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>color: #fff;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>background: linear-gradient(135deg, #f59e0b, #ef4444);</p>
-<p class="p1"><span class="Apple-converted-space">      </span>border: none;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>border-radius: 50px;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>cursor: pointer;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>box-shadow: 0 0 25px rgba(239, 68, 68, 0.6);</p>
-<p class="p1"><span class="Apple-converted-space">      </span>animation: button-glow 1.2s infinite alternate;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>z-index: 20;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">    </span>@keyframes button-glow {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>0% { transform: scale(1); box-shadow: 0 0 15px rgba(245, 158, 11, 0.5); }</p>
-<p class="p1"><span class="Apple-converted-space">      </span>100% { transform: scale(1.06); box-shadow: 0 0 30px rgba(239, 68, 68, 0.9); }</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">    </span>/* ==========================================================================</p>
-<p class="p1"><span class="Apple-converted-space">       </span>5. 底部數據儀表區 (Footer Dashboard)</p>
-<p class="p1"><span class="Apple-converted-space">       </span>========================================================================== */</p>
-<p class="p1"><span class="Apple-converted-space">    </span>footer {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>position: relative;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>z-index: 10;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>padding: 1.25rem 2rem;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>background: var(--card-bg);</p>
-<p class="p1"><span class="Apple-converted-space">      </span>backdrop-filter: blur(8px);</p>
-<p class="p1"><span class="Apple-converted-space">      </span>border-top: 1px solid rgba(255, 255, 255, 0.1);</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">    </span>.gauges-container {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>display: grid;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>grid-template-columns: 1fr 1fr;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>gap: 1.5rem;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">    </span>.gauge-group {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>display: flex;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>flex-direction: column;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>gap: 0.5rem;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">    </span>.gauge-label {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>display: flex;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>justify-content: space-between;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>font-size: 0.9rem;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>color: #9ca3af;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>font-weight: 600;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">    </span>.progress-bar-bg {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>height: 22px;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>background: rgba(0, 0, 0, 0.4);</p>
-<p class="p1"><span class="Apple-converted-space">      </span>border-radius: 11px;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>overflow: hidden;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>border: 1px solid rgba(255, 255, 255, 0.1);</p>
-<p class="p1"><span class="Apple-converted-space">      </span>position: relative;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">    </span>.progress-bar-fill {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>height: 100%;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>width: 0%;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>background: linear-gradient(90deg, #3b82f6, #10b981);</p>
-<p class="p1"><span class="Apple-converted-space">      </span>border-radius: 11px;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>transition: width 0.1s linear;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">    </span>/* 即時音量量表條 */</p>
-<p class="p1"><span class="Apple-converted-space">    </span>.volume-meter-fill {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>height: 100%;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>width: 0%;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>background: var(--accent-green);</p>
-<p class="p1"><span class="Apple-converted-space">      </span>border-radius: 11px;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>transition: width 0.05s ease-out, background-color 0.2s;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p1"><span class="Apple-converted-space">    </span>.volume-meter-fill.exceeded {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>background: var(--accent-red);</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">    </span>/* 門檻指示刻度線 */</p>
-<p class="p1"><span class="Apple-converted-space">    </span>.threshold-line {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>position: absolute;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>top: 0;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>bottom: 0;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>width: 3px;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>background: #fbbf24;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>box-shadow: 0 0 6px #fbbf24;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>z-index: 2;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">    </span>/* ==========================================================================</p>
-<p class="p1"><span class="Apple-converted-space">       </span>6. 懸浮視窗 (Modals, Overlays &amp; Banner)</p>
-<p class="p1"><span class="Apple-converted-space">       </span>========================================================================== */</p>
-<p class="p1"><span class="Apple-converted-space">    </span>.modal-overlay {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>position: fixed;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>inset: 0;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>background: rgba(0, 0, 0, 0.75);</p>
-<p class="p1"><span class="Apple-converted-space">      </span>backdrop-filter: blur(6px);</p>
-<p class="p1"><span class="Apple-converted-space">      </span>z-index: 100;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>display: flex;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>align-items: center;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>justify-content: center;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>opacity: 0;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>pointer-events: none;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>transition: opacity 0.3s;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">    </span>.modal-overlay.active {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>opacity: 1;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>pointer-events: auto;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">    </span>.modal-card {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>background: #1f2937;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>border: 1px solid rgba(255, 255, 255, 0.15);</p>
-<p class="p1"><span class="Apple-converted-space">      </span>border-radius: 16px;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>padding: 2rem;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>width: 90%;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>max-width: 460px;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);</p>
-<p class="p1"><span class="Apple-converted-space">      </span>display: flex;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>flex-direction: column;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>gap: 1.5rem;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">    </span>.modal-title {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>font-size: 1.3rem;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>font-weight: bold;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>color: #fff;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>display: flex;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>justify-content: space-between;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>align-items: center;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">    </span>.setting-item {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>display: flex;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>flex-direction: column;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>gap: 0.5rem;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">    </span>.setting-label {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>font-size: 0.95rem;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>color: #d1d5db;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>display: flex;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>justify-content: space-between;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">    </span>input[type=range] {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>width: 100%;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>height: 6px;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>background: #374151;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>border-radius: 3px;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>accent-color: var(--primary-blue);</p>
-<p class="p1"><span class="Apple-converted-space">      </span>cursor: pointer;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">    </span>.time-options {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>display: flex;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>gap: 0.5rem;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">    </span>.btn-time {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>flex: 1;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>padding: 0.5rem;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>background: #374151;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>border: 1px solid transparent;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>color: #9ca3af;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>border-radius: 8px;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>cursor: pointer;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>font-weight: bold;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p1"><span class="Apple-converted-space">    </span>.btn-time.active {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>background: var(--primary-blue);</p>
-<p class="p1"><span class="Apple-converted-space">      </span>color: #fff;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>border-color: #60a5fa;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">    </span>/* 慶祝畫面 Modal */</p>
-<p class="p1"><span class="Apple-converted-space">    </span>.celebration-modal {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>text-align: center;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p1"><span class="Apple-converted-space">    </span>.celebration-title {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>font-size: 2rem;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>color: #fbbf24;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>margin-bottom: 0.5rem;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">    </span>/* 倒數大字 Overlay */</p>
-<p class="p1"><span class="Apple-converted-space">    </span>.countdown-overlay {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>position: absolute;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>inset: 0;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>z-index: 30;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>display: flex;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>align-items: center;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>justify-content: center;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>font-size: 10rem;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>font-weight: 900;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>color: #fbbf24;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>text-shadow: 0 0 40px rgba(251, 191, 36, 0.8);</p>
-<p class="p1"><span class="Apple-converted-space">      </span>pointer-events: none;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>opacity: 0;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>transition: transform 0.2s, opacity 0.2s;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">    </span>.countdown-overlay.show {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>opacity: 1;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>transform: scale(1.1);</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">    </span>/* 錯誤訊息 Banner (麥克風權限) */</p>
-<p class="p1"><span class="Apple-converted-space">    </span>.error-banner {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>position: fixed;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>top: 80px;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>left: 50%;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>transform: translateX(-50%);</p>
-<p class="p1"><span class="Apple-converted-space">      </span>background: rgba(220, 38, 38, 0.95);</p>
-<p class="p1"><span class="Apple-converted-space">      </span>color: white;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>padding: 0.8rem 1.5rem;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>border-radius: 8px;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>font-weight: bold;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>z-index: 200;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>box-shadow: 0 10px 20px rgba(0,0,0,0.4);</p>
-<p class="p1"><span class="Apple-converted-space">      </span>display: none;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>align-items: center;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>gap: 0.5rem;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p1"><span class="Apple-converted-space">  </span>&lt;/style&gt;</p>
-<p class="p1">&lt;/head&gt;</p>
-<p class="p1">&lt;body&gt;</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">  </span>&lt;!-- 背景動態光圈 --&gt;</p>
-<p class="p1"><span class="Apple-converted-space">  </span>&lt;div class="bg-overlay" id="bgOverlay"&gt;&lt;/div&gt;</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">  </span>&lt;!-- 麥克風錯誤提示 Banner (P0) --&gt;</p>
-<p class="p1"><span class="Apple-converted-space">  </span>&lt;div class="error-banner" id="errorBanner"&gt;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>⚠️ &lt;span id="errorText"&gt;無法取得麥克風權限，請確認權限設定後重新整理頁面。&lt;/span&gt;</p>
-<p class="p1"><span class="Apple-converted-space">  </span>&lt;/div&gt;</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">  </span>&lt;!-- 頂部資訊列 (Header) --&gt;</p>
-<p class="p1"><span class="Apple-converted-space">  </span>&lt;header&gt;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>&lt;div class="launch-counter"&gt;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>&lt;span id="counterDisplay"&gt;🚀 x 0&lt;/span&gt;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>&lt;button class="btn-reset-counter" id="btnResetCounter" title="重置計數器"&gt;歸零&lt;/button&gt;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>&lt;/div&gt;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>&lt;div class="top-controls"&gt;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>&lt;button class="btn" id="btnMicInit"&gt;🎙️ 啟動麥克風&lt;/button&gt;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>&lt;button class="btn" id="btnOpenSettings"&gt;⚙️ 設定&lt;/button&gt;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>&lt;button class="btn" id="btnFullscreen"&gt;⛶ 全螢幕&lt;/button&gt;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>&lt;/div&gt;</p>
-<p class="p1"><span class="Apple-converted-space">  </span>&lt;/header&gt;</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">  </span>&lt;!-- 中央主舞台 (Main Launchpad) --&gt;</p>
-<p class="p1"><span class="Apple-converted-space">  </span>&lt;main&gt;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>&lt;div class="countdown-overlay" id="countdownOverlay"&gt;3&lt;/div&gt;</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">    </span>&lt;div class="stage"&gt;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>&lt;div class="rocket-wrapper" id="rocketWrapper"&gt;</p>
-<p class="p1"><span class="Apple-converted-space">        </span>&lt;!-- 原生 SVG 向量火箭繪製 --&gt;</p>
-<p class="p1"><span class="Apple-converted-space">        </span>&lt;svg class="rocket-svg" viewBox="0 0 100 140" fill="none" xmlns="http://www.w3.org/2000/svg"&gt;</p>
-<p class="p1"><span class="Apple-converted-space">          </span>&lt;path d="M50 10 C30 40 25 80 25 110 L75 110 C75 80 70 40 50 10 Z" fill="#E5E7EB"/&gt;</p>
-<p class="p1"><span class="Apple-converted-space">          </span>&lt;path d="M50 10 C38 28 32 45 30 55 L70 55 C68 45 62 28 50 10 Z" fill="#EF4444"/&gt;</p>
-<p class="p1"><span class="Apple-converted-space">          </span>&lt;circle cx="50" cy="70" r="12" fill="#1F2937" stroke="#9CA3AF" stroke-width="3"/&gt;</p>
-<p class="p1"><span class="Apple-converted-space">          </span>&lt;circle cx="50" cy="70" r="8" fill="#60A5FA"/&gt;</p>
-<p class="p1"><span class="Apple-converted-space">          </span>&lt;circle cx="47" cy="67" r="3" fill="#FFFFFF" opacity="0.8"/&gt;</p>
-<p class="p1"><span class="Apple-converted-space">          </span>&lt;path d="M25 85 L5 115 L25 110 Z" fill="#DC2626"/&gt;</p>
-<p class="p1"><span class="Apple-converted-space">          </span>&lt;path d="M75 85 L95 115 L75 110 Z" fill="#DC2626"/&gt;</p>
-<p class="p1"><span class="Apple-converted-space">          </span>&lt;rect x="38" y="110" width="24" height="8" rx="2" fill="#4B5563"/&gt;</p>
-<p class="p1"><span class="Apple-converted-space">        </span>&lt;/svg&gt;</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">        </span>&lt;!-- 動態噴射火焰 --&gt;</p>
-<p class="p1"><span class="Apple-converted-space">        </span>&lt;div class="flame-container" id="flameContainer"&gt;</p>
-<p class="p1"><span class="Apple-converted-space">          </span>&lt;div class="flame"&gt;&lt;/div&gt;</p>
-<p class="p1"><span class="Apple-converted-space">        </span>&lt;/div&gt;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>&lt;/div&gt;</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">      </span>&lt;!-- 發射台底座 --&gt;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>&lt;div class="launchpad-base"&gt;&lt;/div&gt;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>&lt;/div&gt;</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">    </span>&lt;!-- 狀態標籤與點火發射按鈕 (P0) --&gt;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>&lt;div class="status-badge" id="statusBadge"&gt;等待啟動麥克風...&lt;/div&gt;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>&lt;button class="btn-fire" id="btnFire"&gt;🚀 點火發射！&lt;/button&gt;</p>
-<p class="p1"><span class="Apple-converted-space">  </span>&lt;/main&gt;</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">  </span>&lt;!-- 底部儀表區 (Footer) --&gt;</p>
-<p class="p1"><span class="Apple-converted-space">  </span>&lt;footer&gt;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>&lt;div class="gauges-container"&gt;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>&lt;!-- 即時音量計 --&gt;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>&lt;div class="gauge-group"&gt;</p>
-<p class="p1"><span class="Apple-converted-space">        </span>&lt;div class="gauge-label"&gt;</p>
-<p class="p1"><span class="Apple-converted-space">          </span>&lt;span&gt;🎤 教室即時音量&lt;/span&gt;</p>
-<p class="p1"><span class="Apple-converted-space">          </span>&lt;span id="volumeValue"&gt;0%&lt;/span&gt;</p>
-<p class="p1"><span class="Apple-converted-space">        </span>&lt;/div&gt;</p>
-<p class="p1"><span class="Apple-converted-space">        </span>&lt;div class="progress-bar-bg"&gt;</p>
-<p class="p1"><span class="Apple-converted-space">          </span>&lt;div class="threshold-line" id="thresholdLine" style="left: 30%;"&gt;&lt;/div&gt;</p>
-<p class="p1"><span class="Apple-converted-space">          </span>&lt;div class="volume-meter-fill" id="volumeMeter"&gt;&lt;/div&gt;</p>
-<p class="p1"><span class="Apple-converted-space">        </span>&lt;/div&gt;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>&lt;/div&gt;</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">      </span>&lt;!-- 升空燃料進度條 --&gt;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>&lt;div class="gauge-group"&gt;</p>
-<p class="p1"><span class="Apple-converted-space">        </span>&lt;div class="gauge-label"&gt;</p>
-<p class="p1"><span class="Apple-converted-space">          </span>&lt;span&gt;⛽ 升空燃料累積&lt;/span&gt;</p>
-<p class="p1"><span class="Apple-converted-space">          </span>&lt;span id="fuelValue"&gt;0%&lt;/span&gt;</p>
-<p class="p1"><span class="Apple-converted-space">        </span>&lt;/div&gt;</p>
-<p class="p1"><span class="Apple-converted-space">        </span>&lt;div class="progress-bar-bg"&gt;</p>
-<p class="p1"><span class="Apple-converted-space">          </span>&lt;div class="progress-bar-fill" id="fuelMeter"&gt;&lt;/div&gt;</p>
-<p class="p1"><span class="Apple-converted-space">        </span>&lt;/div&gt;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>&lt;/div&gt;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>&lt;/div&gt;</p>
-<p class="p1"><span class="Apple-converted-space">  </span>&lt;/footer&gt;</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">  </span>&lt;!-- 設定控制彈窗 Modal --&gt;</p>
-<p class="p1"><span class="Apple-converted-space">  </span>&lt;div class="modal-overlay" id="settingsModal"&gt;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>&lt;div class="modal-card"&gt;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>&lt;div class="modal-title"&gt;</p>
-<p class="p1"><span class="Apple-converted-space">        </span>⚙️ 控制台設定</p>
-<p class="p1"><span class="Apple-converted-space">        </span>&lt;button class="btn" id="btnCloseSettings" style="padding: 0.2rem 0.6rem;"&gt;✕&lt;/button&gt;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>&lt;/div&gt;</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">      </span>&lt;!-- 靈敏度門檻滑桿 (P0) --&gt;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>&lt;div class="setting-item"&gt;</p>
-<p class="p1"><span class="Apple-converted-space">        </span>&lt;div class="setting-label"&gt;</p>
-<p class="p1"><span class="Apple-converted-space">          </span>&lt;span&gt;麥克風安靜門檻 (靈敏度)&lt;/span&gt;</p>
-<p class="p1"><span class="Apple-converted-space">          </span>&lt;span id="sensitivityText" style="color: #fbbf24;"&gt;30%&lt;/span&gt;</p>
-<p class="p1"><span class="Apple-converted-space">        </span>&lt;/div&gt;</p>
-<p class="p1"><span class="Apple-converted-space">        </span>&lt;input type="range" id="sensitivitySlider" min="5" max="80" value="30"&gt;</p>
-<p class="p1"><span class="Apple-converted-space">        </span>&lt;span style="font-size: 0.8rem; color: #9ca3af;"&gt;音量大於此門檻算太吵，小於此門檻開始累積燃料。&lt;/span&gt;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>&lt;/div&gt;</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">      </span>&lt;!-- 目標安靜時間選擇 (P1) --&gt;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>&lt;div class="setting-item"&gt;</p>
-<p class="p1"><span class="Apple-converted-space">        </span>&lt;div class="setting-label"&gt;</p>
-<p class="p1"><span class="Apple-converted-space">          </span>&lt;span&gt;目標安靜時間 (集滿燃料)&lt;/span&gt;</p>
-<p class="p1"><span class="Apple-converted-space">        </span>&lt;/div&gt;</p>
-<p class="p1"><span class="Apple-converted-space">        </span>&lt;div class="time-options"&gt;</p>
-<p class="p1"><span class="Apple-converted-space">          </span>&lt;button class="btn-time" data-time="30"&gt;30 秒&lt;/button&gt;</p>
-<p class="p1"><span class="Apple-converted-space">          </span>&lt;button class="btn-time active" data-time="60"&gt;1 分鐘&lt;/button&gt;</p>
-<p class="p1"><span class="Apple-converted-space">          </span>&lt;button class="btn-time" data-time="120"&gt;2 分鐘&lt;/button&gt;</p>
-<p class="p1"><span class="Apple-converted-space">        </span>&lt;/div&gt;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>&lt;/div&gt;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>&lt;/div&gt;</p>
-<p class="p1"><span class="Apple-converted-space">  </span>&lt;/div&gt;</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">  </span>&lt;!-- 慶祝成功 Modal (P1) --&gt;</p>
-<p class="p1"><span class="Apple-converted-space">  </span>&lt;div class="modal-overlay" id="celebrationModal"&gt;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>&lt;div class="modal-card celebration-modal"&gt;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>&lt;div class="celebration-title"&gt;🎉 發射成功！&lt;/div&gt;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>&lt;p style="color: #d1d5db; font-size: 1.1rem; margin-bottom: 1.5rem;"&gt;</p>
-<p class="p1"><span class="Apple-converted-space">        </span>太棒了！大家維持了優良的安靜秩序，火箭已成功升空！</p>
-<p class="p1"><span class="Apple-converted-space">      </span>&lt;/p&gt;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>&lt;button class="btn" id="btnNextRound" style="width: 100%; justify-content: center; padding: 0.8rem; background: var(--accent-green); font-size: 1.1rem;"&gt;</p>
-<p class="p1"><span class="Apple-converted-space">        </span>🔄 開啟下一輪任務</p>
-<p class="p1"><span class="Apple-converted-space">      </span>&lt;/button&gt;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>&lt;/div&gt;</p>
-<p class="p1"><span class="Apple-converted-space">  </span>&lt;/div&gt;</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">  </span>&lt;script&gt;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>/* ==========================================================================</p>
-<p class="p1"><span class="Apple-converted-space">       </span>1. 狀態變數與 localStorage 儲存管理 (P1)</p>
-<p class="p1"><span class="Apple-converted-space">       </span>========================================================================== */</p>
-<p class="p1"><span class="Apple-converted-space">    </span>const STORAGE_KEY_COUNT = 'rocket_launch_count';</p>
-<p class="p1"><span class="Apple-converted-space">    </span>const STORAGE_KEY_SENSITIVITY = 'rocket_sensitivity';</p>
-<p class="p1"><span class="Apple-converted-space">    </span>const STORAGE_KEY_TARGET_TIME = 'rocket_target_time';</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">    </span>// 載入或使用預設設定</p>
-<p class="p1"><span class="Apple-converted-space">    </span>let launchCount = parseInt(localStorage.getItem(STORAGE_KEY_COUNT)) || 0;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>let sensitivityThreshold = parseInt(localStorage.getItem(STORAGE_KEY_SENSITIVITY)) || 30;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>let targetTimeSeconds = parseInt(localStorage.getItem(STORAGE_KEY_TARGET_TIME)) || 60;</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">    </span>let fuelPercent = 0; // 燃料百分比 0 ~ 100</p>
-<p class="p1"><span class="Apple-converted-space">    </span>let isMicActive = false;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>let isReadyToLaunch = false;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>let isLaunching = false;</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">    </span>// Web Audio API 物件參考</p>
-<p class="p1"><span class="Apple-converted-space">    </span>let audioCtx = null;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>let analyser = null;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>let micStream = null;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>let dataArray = null;</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">    </span>/* ==========================================================================</p>
-<p class="p1"><span class="Apple-converted-space">       </span>2. DOM 元件參考</p>
-<p class="p1"><span class="Apple-converted-space">       </span>========================================================================== */</p>
-<p class="p1"><span class="Apple-converted-space">    </span>const counterDisplay = document.getElementById('counterDisplay');</p>
-<p class="p1"><span class="Apple-converted-space">    </span>const btnResetCounter = document.getElementById('btnResetCounter');</p>
-<p class="p1"><span class="Apple-converted-space">    </span>const btnMicInit = document.getElementById('btnMicInit');</p>
-<p class="p1"><span class="Apple-converted-space">    </span>const btnOpenSettings = document.getElementById('btnOpenSettings');</p>
-<p class="p1"><span class="Apple-converted-space">    </span>const btnCloseSettings = document.getElementById('btnCloseSettings');</p>
-<p class="p1"><span class="Apple-converted-space">    </span>const btnFullscreen = document.getElementById('btnFullscreen');</p>
-<p class="p1"><span class="Apple-converted-space">    </span>const settingsModal = document.getElementById('settingsModal');</p>
-<p class="p1"><span class="Apple-converted-space">    </span>const celebrationModal = document.getElementById('celebrationModal');</p>
-<p class="p1"><span class="Apple-converted-space">    </span>const btnNextRound = document.getElementById('btnNextRound');</p>
-<p class="p1"><span class="Apple-converted-space">    </span>const sensitivitySlider = document.getElementById('sensitivitySlider');</p>
-<p class="p1"><span class="Apple-converted-space">    </span>const sensitivityText = document.getElementById('sensitivityText');</p>
-<p class="p1"><span class="Apple-converted-space">    </span>const timeButtons = document.querySelectorAll('.btn-time');</p>
-<p class="p2"><span class="Apple-converted-space">    </span></p>
-<p class="p1"><span class="Apple-converted-space">    </span>const volumeMeter = document.getElementById('volumeMeter');</p>
-<p class="p1"><span class="Apple-converted-space">    </span>const volumeValue = document.getElementById('volumeValue');</p>
-<p class="p1"><span class="Apple-converted-space">    </span>const thresholdLine = document.getElementById('thresholdLine');</p>
-<p class="p1"><span class="Apple-converted-space">    </span>const fuelMeter = document.getElementById('fuelMeter');</p>
-<p class="p1"><span class="Apple-converted-space">    </span>const fuelValue = document.getElementById('fuelValue');</p>
-<p class="p2"><span class="Apple-converted-space">    </span></p>
-<p class="p1"><span class="Apple-converted-space">    </span>const bgOverlay = document.getElementById('bgOverlay');</p>
-<p class="p1"><span class="Apple-converted-space">    </span>const statusBadge = document.getElementById('statusBadge');</p>
-<p class="p1"><span class="Apple-converted-space">    </span>const flameContainer = document.getElementById('flameContainer');</p>
-<p class="p1"><span class="Apple-converted-space">    </span>const rocketWrapper = document.getElementById('rocketWrapper');</p>
-<p class="p1"><span class="Apple-converted-space">    </span>const btnFire = document.getElementById('btnFire');</p>
-<p class="p1"><span class="Apple-converted-space">    </span>const countdownOverlay = document.getElementById('countdownOverlay');</p>
-<p class="p1"><span class="Apple-converted-space">    </span>const errorBanner = document.getElementById('errorBanner');</p>
-<p class="p1"><span class="Apple-converted-space">    </span>const errorText = document.getElementById('errorText');</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">    </span>/* ==========================================================================</p>
-<p class="p1"><span class="Apple-converted-space">       </span>3. 初始化 UI 與恢復設定</p>
-<p class="p1"><span class="Apple-converted-space">       </span>========================================================================== */</p>
-<p class="p1"><span class="Apple-converted-space">    </span>function initUI() {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>counterDisplay.textContent = `🚀 x ${launchCount}`;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>sensitivitySlider.value = sensitivityThreshold;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>sensitivityText.textContent = `${sensitivityThreshold}%`;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>thresholdLine.style.left = `${sensitivityThreshold}%`;</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">      </span>timeButtons.forEach(btn =&gt; {</p>
-<p class="p1"><span class="Apple-converted-space">        </span>if (parseInt(btn.dataset.time) === targetTimeSeconds) {</p>
-<p class="p1"><span class="Apple-converted-space">          </span>btn.classList.add('active');</p>
-<p class="p1"><span class="Apple-converted-space">        </span>} else {</p>
-<p class="p1"><span class="Apple-converted-space">          </span>btn.classList.remove('active');</p>
-<p class="p1"><span class="Apple-converted-space">        </span>}</p>
-<p class="p1"><span class="Apple-converted-space">      </span>});</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">    </span>/* ==========================================================================</p>
-<p class="p1"><span class="Apple-converted-space">       </span>4. Web Audio API 音量偵測與例外處理 (P0 &amp; P2)</p>
-<p class="p1"><span class="Apple-converted-space">       </span>========================================================================== */</p>
-<p class="p1"><span class="Apple-converted-space">    </span>async function startMic() {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>try {</p>
-<p class="p1"><span class="Apple-converted-space">        </span>errorBanner.style.display = 'none';</p>
-<p class="p2"><span class="Apple-converted-space">        </span></p>
-<p class="p1"><span class="Apple-converted-space">        </span>// 請求麥克風權限</p>
-<p class="p1"><span class="Apple-converted-space">        </span>const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });</p>
-<p class="p1"><span class="Apple-converted-space">        </span>micStream = stream;</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">        </span>// 建立 AudioContext 與 AnalyserNode</p>
-<p class="p1"><span class="Apple-converted-space">        </span>audioCtx = new (window.AudioContext || window.webkitAudioContext)();</p>
-<p class="p1"><span class="Apple-converted-space">        </span>const source = audioCtx.createMediaStreamSource(stream);</p>
-<p class="p1"><span class="Apple-converted-space">        </span>analyser = audioCtx.createAnalyser();</p>
-<p class="p1"><span class="Apple-converted-space">        </span>analyser.fftSize = 256;</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">        </span>source.connect(analyser);</p>
-<p class="p1"><span class="Apple-converted-space">        </span>dataArray = new Uint8Array(analyser.frequencyBinCount);</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">        </span>isMicActive = true;</p>
-<p class="p1"><span class="Apple-converted-space">        </span>btnMicInit.style.display = 'none';</p>
-<p class="p1"><span class="Apple-converted-space">        </span>statusBadge.textContent = "🟢 系統運作中，請保持安靜...";</p>
-<p class="p1"><span class="Apple-converted-space">        </span>statusBadge.className = "status-badge charging";</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">        </span>// 啟動音量計算主迴圈</p>
-<p class="p1"><span class="Apple-converted-space">        </span>requestAnimationFrame(processAudio);</p>
-<p class="p1"><span class="Apple-converted-space">      </span>} catch (err) {</p>
-<p class="p1"><span class="Apple-converted-space">        </span>console.error("麥克風啟動失敗：", err);</p>
-<p class="p1"><span class="Apple-converted-space">        </span>if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {</p>
-<p class="p1"><span class="Apple-converted-space">          </span>errorText.textContent = "麥克風權限被拒絕，請允許存取麥克風後重新整理頁面。";</p>
-<p class="p1"><span class="Apple-converted-space">        </span>} else {</p>
-<p class="p1"><span class="Apple-converted-space">          </span>errorText.textContent = "未檢測到麥克風裝置，請確認已連接收音設備。";</p>
-<p class="p1"><span class="Apple-converted-space">        </span>}</p>
-<p class="p1"><span class="Apple-converted-space">        </span>errorBanner.style.display = 'flex';</p>
-<p class="p1"><span class="Apple-converted-space">      </span>}</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">    </span>/* ==========================================================================</p>
-<p class="p1"><span class="Apple-converted-space">       </span>5. 核心計算主迴圈 (包含安靜累積與緩慢倒扣邏輯) (P0)</p>
-<p class="p1"><span class="Apple-converted-space">       </span>========================================================================== */</p>
-<p class="p1"><span class="Apple-converted-space">    </span>let lastTime = performance.now();</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">    </span>function processAudio(now) {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>const deltaTime = (now - lastTime) / 1000; // 換算成秒數</p>
-<p class="p1"><span class="Apple-converted-space">      </span>lastTime = now;</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">      </span>if (isMicActive &amp;&amp; !isReadyToLaunch &amp;&amp; !isLaunching) {</p>
-<p class="p1"><span class="Apple-converted-space">        </span>// A. 計算當前 RMS 音量 (0~100%)</p>
-<p class="p1"><span class="Apple-converted-space">        </span>analyser.getByteFrequencyData(dataArray);</p>
-<p class="p1"><span class="Apple-converted-space">        </span>let sum = 0;</p>
-<p class="p1"><span class="Apple-converted-space">        </span>for (let i = 0; i &lt; dataArray.length; i++) {</p>
-<p class="p1"><span class="Apple-converted-space">          </span>sum += dataArray[i];</p>
-<p class="p1"><span class="Apple-converted-space">        </span>}</p>
-<p class="p1"><span class="Apple-converted-space">        </span>let average = sum / dataArray.length;</p>
-<p class="p1"><span class="Apple-converted-space">        </span>let currentVolume = Math.min(100, Math.round((average / 128) * 100));</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">        </span>// B. 更新即時音量計</p>
-<p class="p1"><span class="Apple-converted-space">        </span>volumeMeter.style.width = `${currentVolume}%`;</p>
-<p class="p1"><span class="Apple-converted-space">        </span>volumeValue.textContent = `${currentVolume}%`;</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">        </span>// C. 判斷是否低於安靜門檻</p>
-<p class="p1"><span class="Apple-converted-space">        </span>const isQuiet = currentVolume &lt;= sensitivityThreshold;</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">        </span>if (isQuiet) {</p>
-<p class="p1"><span class="Apple-converted-space">          </span>// --- 安靜狀態：集氣中 ---</p>
-<p class="p1"><span class="Apple-converted-space">          </span>volumeMeter.classList.remove('exceeded');</p>
-<p class="p1"><span class="Apple-converted-space">          </span>bgOverlay.className = 'bg-overlay charging';</p>
-<p class="p1"><span class="Apple-converted-space">          </span>statusBadge.textContent = "✨ 穩定集氣中...";</p>
-<p class="p1"><span class="Apple-converted-space">          </span>statusBadge.className = "status-badge charging";</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">          </span>// 火焰動態：越安靜，火焰越高</p>
-<p class="p1"><span class="Apple-converted-space">          </span>let quietnessRatio = (sensitivityThreshold - currentVolume) / sensitivityThreshold;<span class="Apple-converted-space"> </span></p>
-<p class="p1"><span class="Apple-converted-space">          </span>let flameHeight = 20 + quietnessRatio * 80; // 20px ~ 100px</p>
-<p class="p1"><span class="Apple-converted-space">          </span>flameContainer.style.height = `${flameHeight}px`;</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">          </span>// 燃料累積：(100 / 目標秒數) % / 秒</p>
-<p class="p1"><span class="Apple-converted-space">          </span>let gainRate = 100 / targetTimeSeconds;</p>
-<p class="p1"><span class="Apple-converted-space">          </span>fuelPercent = Math.min(100, fuelPercent + gainRate * deltaTime);</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">        </span>} else {</p>
-<p class="p1"><span class="Apple-converted-space">          </span>// --- 太吵狀態：燃料流失 ---</p>
-<p class="p1"><span class="Apple-converted-space">          </span>volumeMeter.classList.add('exceeded');</p>
-<p class="p1"><span class="Apple-converted-space">          </span>bgOverlay.className = 'bg-overlay warning';</p>
-<p class="p1"><span class="Apple-converted-space">          </span>statusBadge.textContent = "⚠️ 太吵囉！燃料流失中...";</p>
-<p class="p1"><span class="Apple-converted-space">          </span>statusBadge.className = "status-badge warning";</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">          </span>// 火焰縮小</p>
-<p class="p1"><span class="Apple-converted-space">          </span>flameContainer.style.height = '10px';</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">          </span>// 播放警告短音</p>
-<p class="p1"><span class="Apple-converted-space">          </span>playBeepSound(220, 0.05, 'sawtooth');</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">          </span>// 燃料流失：累積速度的一半 (流失完畢需 2 * targetTimeSeconds 秒)</p>
-<p class="p1"><span class="Apple-converted-space">          </span>let lossRate = 100 / (targetTimeSeconds * 2);</p>
-<p class="p1"><span class="Apple-converted-space">          </span>fuelPercent = Math.max(0, fuelPercent - lossRate * deltaTime);</p>
-<p class="p1"><span class="Apple-converted-space">        </span>}</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">        </span>// D. 更新燃料 UI</p>
-<p class="p1"><span class="Apple-converted-space">        </span>fuelMeter.style.width = `${fuelPercent}%`;</p>
-<p class="p1"><span class="Apple-converted-space">        </span>fuelValue.textContent = `${Math.floor(fuelPercent)}%`;</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">        </span>// E. 燃料滿 100% 觸發手動發射模式</p>
-<p class="p1"><span class="Apple-converted-space">        </span>if (fuelPercent &gt;= 100) {</p>
-<p class="p1"><span class="Apple-converted-space">          </span>triggerReadyToLaunch();</p>
-<p class="p1"><span class="Apple-converted-space">        </span>}</p>
-<p class="p1"><span class="Apple-converted-space">      </span>}</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">      </span>requestAnimationFrame(processAudio);</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">    </span>/* ==========================================================================</p>
-<p class="p1"><span class="Apple-converted-space">       </span>6. 手動發射與 3-2-1 倒數流程 (P0)</p>
-<p class="p1"><span class="Apple-converted-space">       </span>========================================================================== */</p>
-<p class="p1"><span class="Apple-converted-space">    </span>function triggerReadyToLaunch() {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>isReadyToLaunch = true;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>statusBadge.textContent = "⚡ 燃料已集滿！準備發射！";</p>
-<p class="p1"><span class="Apple-converted-space">      </span>statusBadge.className = "status-badge ready";</p>
-<p class="p1"><span class="Apple-converted-space">      </span>btnFire.style.display = "block";</p>
-<p class="p1"><span class="Apple-converted-space">      </span>flameContainer.style.height = '120px'; // 最大發光火焰</p>
-<p class="p1"><span class="Apple-converted-space">      </span>bgOverlay.className = 'bg-overlay charging';</p>
-<p class="p1"><span class="Apple-converted-space">      </span>playBeepSound(880, 0.3, 'sine');</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">    </span>// 點擊「🚀 點火發射！」</p>
-<p class="p1"><span class="Apple-converted-space">    </span>btnFire.addEventListener('click', () =&gt; {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>btnFire.style.display = "none";</p>
-<p class="p1"><span class="Apple-converted-space">      </span>startCountdown();</p>
-<p class="p1"><span class="Apple-converted-space">    </span>});</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">    </span>// 3, 2, 1 倒數</p>
-<p class="p1"><span class="Apple-converted-space">    </span>function startCountdown() {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>let count = 3;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>countdownOverlay.textContent = count;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>countdownOverlay.classList.add('show');</p>
-<p class="p1"><span class="Apple-converted-space">      </span>playBeepSound(523.25, 0.15, 'sine');</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">      </span>const timer = setInterval(() =&gt; {</p>
-<p class="p1"><span class="Apple-converted-space">        </span>count--;</p>
-<p class="p1"><span class="Apple-converted-space">        </span>if (count &gt; 0) {</p>
-<p class="p1"><span class="Apple-converted-space">          </span>countdownOverlay.textContent = count;</p>
-<p class="p1"><span class="Apple-converted-space">          </span>playBeepSound(523.25, 0.15, 'sine');</p>
-<p class="p1"><span class="Apple-converted-space">        </span>} else if (count === 0) {</p>
-<p class="p1"><span class="Apple-converted-space">          </span>countdownOverlay.textContent = "🚀";</p>
-<p class="p1"><span class="Apple-converted-space">          </span>playBeepSound(1046.5, 0.4, 'triangle');</p>
-<p class="p1"><span class="Apple-converted-space">        </span>} else {</p>
-<p class="p1"><span class="Apple-converted-space">          </span>clearInterval(timer);</p>
-<p class="p1"><span class="Apple-converted-space">          </span>countdownOverlay.classList.remove('show');</p>
-<p class="p1"><span class="Apple-converted-space">          </span>executeLaunch();</p>
-<p class="p1"><span class="Apple-converted-space">        </span>}</p>
-<p class="p1"><span class="Apple-converted-space">      </span>}, 1000);</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">    </span>// 執行火箭升空</p>
-<p class="p1"><span class="Apple-converted-space">    </span>function executeLaunch() {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>isLaunching = true;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>statusBadge.textContent = "🔥 火箭升空！";</p>
-<p class="p1"><span class="Apple-converted-space">      </span>rocketWrapper.classList.add('launching');</p>
-<p class="p1"><span class="Apple-converted-space">      </span>playRocketEngineSound(3.0); // 播放 3 秒實時合成火箭引擎聲</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">      </span>setTimeout(() =&gt; {</p>
-<p class="p1"><span class="Apple-converted-space">        </span>// 發射成功次數累計</p>
-<p class="p1"><span class="Apple-converted-space">        </span>launchCount++;</p>
-<p class="p1"><span class="Apple-converted-space">        </span>localStorage.setItem(STORAGE_KEY_COUNT, launchCount);</p>
-<p class="p1"><span class="Apple-converted-space">        </span>counterDisplay.textContent = `🚀 x ${launchCount}`;</p>
-<p class="p2"><span class="Apple-converted-space">        </span></p>
-<p class="p1"><span class="Apple-converted-space">        </span>// 跳出慶祝視窗</p>
-<p class="p1"><span class="Apple-converted-space">        </span>celebrationModal.classList.add('active');</p>
-<p class="p1"><span class="Apple-converted-space">      </span>}, 2500);</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">    </span>// 開啟下一輪任務 (P1)</p>
-<p class="p1"><span class="Apple-converted-space">    </span>btnNextRound.addEventListener('click', () =&gt; {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>celebrationModal.classList.remove('active');</p>
-<p class="p2"><span class="Apple-converted-space">      </span></p>
-<p class="p1"><span class="Apple-converted-space">      </span>// 重置火箭位置與變數</p>
-<p class="p1"><span class="Apple-converted-space">      </span>rocketWrapper.classList.remove('launching');</p>
-<p class="p1"><span class="Apple-converted-space">      </span>fuelPercent = 0;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>fuelMeter.style.width = '0%';</p>
-<p class="p1"><span class="Apple-converted-space">      </span>fuelValue.textContent = '0%';</p>
-<p class="p1"><span class="Apple-converted-space">      </span>flameContainer.style.height = '0px';</p>
-<p class="p2"><span class="Apple-converted-space">      </span></p>
-<p class="p1"><span class="Apple-converted-space">      </span>isReadyToLaunch = false;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>isLaunching = false;</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">      </span>statusBadge.textContent = "🟢 系統運作中，請保持安靜...";</p>
-<p class="p1"><span class="Apple-converted-space">      </span>statusBadge.className = "status-badge charging";</p>
-<p class="p1"><span class="Apple-converted-space">    </span>});</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">    </span>/* ==========================================================================</p>
-<p class="p1"><span class="Apple-converted-space">       </span>7. Web Audio API 音效實時合成 (無外部檔案相依) (P0)</p>
-<p class="p1"><span class="Apple-converted-space">       </span>========================================================================== */</p>
-<p class="p1"><span class="Apple-converted-space">    </span>// 嗶嗶聲與警示音合成</p>
-<p class="p1"><span class="Apple-converted-space">    </span>function playBeepSound(freq, duration, type = 'sine') {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>if (!audioCtx) return;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>try {</p>
-<p class="p1"><span class="Apple-converted-space">        </span>const osc = audioCtx.createOscillator();</p>
-<p class="p1"><span class="Apple-converted-space">        </span>const gain = audioCtx.createGain();</p>
-<p class="p1"><span class="Apple-converted-space">        </span>osc.type = type;</p>
-<p class="p1"><span class="Apple-converted-space">        </span>osc.frequency.value = freq;</p>
-<p class="p2"><span class="Apple-converted-space">        </span></p>
-<p class="p1"><span class="Apple-converted-space">        </span>gain.gain.setValueAtTime(0.1, audioCtx.currentTime);</p>
-<p class="p1"><span class="Apple-converted-space">        </span>gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">        </span>osc.connect(gain);</p>
-<p class="p1"><span class="Apple-converted-space">        </span>gain.connect(audioCtx.destination);</p>
-<p class="p2"><span class="Apple-converted-space">        </span></p>
-<p class="p1"><span class="Apple-converted-space">        </span>osc.start();</p>
-<p class="p1"><span class="Apple-converted-space">        </span>osc.stop(audioCtx.currentTime + duration);</p>
-<p class="p1"><span class="Apple-converted-space">      </span>} catch(e) {}</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">    </span>// 粉紅噪音 (Pink Noise) + 低通濾波器模擬火箭引擎轟鳴聲</p>
-<p class="p1"><span class="Apple-converted-space">    </span>function playRocketEngineSound(duration) {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>if (!audioCtx) return;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>try {</p>
-<p class="p1"><span class="Apple-converted-space">        </span>const bufferSize = audioCtx.sampleRate * duration;</p>
-<p class="p1"><span class="Apple-converted-space">        </span>const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);</p>
-<p class="p1"><span class="Apple-converted-space">        </span>const output = buffer.getChannelData(0);</p>
-<p class="p2"><span class="Apple-converted-space">        </span></p>
-<p class="p1"><span class="Apple-converted-space">        </span>// 粉紅噪音生成演算法</p>
-<p class="p1"><span class="Apple-converted-space">        </span>let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;</p>
-<p class="p1"><span class="Apple-converted-space">        </span>for (let i = 0; i &lt; bufferSize; i++) {</p>
-<p class="p1"><span class="Apple-converted-space">          </span>let white = Math.random() * 2 - 1;</p>
-<p class="p1"><span class="Apple-converted-space">          </span>b0 = 0.99886 * b0 + white * 0.0555179;</p>
-<p class="p1"><span class="Apple-converted-space">          </span>b1 = 0.99332 * b1 + white * 0.0750759;</p>
-<p class="p1"><span class="Apple-converted-space">          </span>b2 = 0.96900 * b2 + white * 0.1538520;</p>
-<p class="p1"><span class="Apple-converted-space">          </span>b3 = 0.86650 * b3 + white * 0.3104856;</p>
-<p class="p1"><span class="Apple-converted-space">          </span>b4 = 0.55000 * b4 + white * 0.5329522;</p>
-<p class="p1"><span class="Apple-converted-space">          </span>b5 = -0.7616 * b5 - white * 0.0168980;</p>
-<p class="p1"><span class="Apple-converted-space">          </span>output[i] = b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362;</p>
-<p class="p1"><span class="Apple-converted-space">          </span>output[i] *= 0.11;</p>
-<p class="p1"><span class="Apple-converted-space">          </span>b6 = white * 0.115926;</p>
-<p class="p1"><span class="Apple-converted-space">        </span>}</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">        </span>const whiteNoise = audioCtx.createBufferSource();</p>
-<p class="p1"><span class="Apple-converted-space">        </span>whiteNoise.buffer = buffer;</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">        </span>// 動態低通濾波器 ( Low-pass Filter )</p>
-<p class="p1"><span class="Apple-converted-space">        </span>const filter = audioCtx.createBiquadFilter();</p>
-<p class="p1"><span class="Apple-converted-space">        </span>filter.type = 'lowpass';</p>
-<p class="p1"><span class="Apple-converted-space">        </span>filter.frequency.setValueAtTime(300, audioCtx.currentTime);</p>
-<p class="p1"><span class="Apple-converted-space">        </span>filter.frequency.linearRampToValueAtTime(800, audioCtx.currentTime + 1.0);</p>
-<p class="p1"><span class="Apple-converted-space">        </span>filter.frequency.exponentialRampToValueAtTime(50, audioCtx.currentTime + duration);</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">        </span>const gain = audioCtx.createGain();</p>
-<p class="p1"><span class="Apple-converted-space">        </span>gain.gain.setValueAtTime(0.5, audioCtx.currentTime);</p>
-<p class="p1"><span class="Apple-converted-space">        </span>gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">        </span>whiteNoise.connect(filter);</p>
-<p class="p1"><span class="Apple-converted-space">        </span>filter.connect(gain);</p>
-<p class="p1"><span class="Apple-converted-space">        </span>gain.connect(audioCtx.destination);</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">        </span>whiteNoise.start();</p>
-<p class="p1"><span class="Apple-converted-space">      </span>} catch(e) {}</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">    </span>/* ==========================================================================</p>
-<p class="p1"><span class="Apple-converted-space">       </span>8. 控制介面與全螢幕事件處置 (P1 &amp; P2)</p>
-<p class="p1"><span class="Apple-converted-space">       </span>========================================================================== */</p>
-<p class="p1"><span class="Apple-converted-space">    </span>btnMicInit.addEventListener('click', startMic);</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">    </span>btnOpenSettings.addEventListener('click', () =&gt; settingsModal.classList.add('active'));</p>
-<p class="p1"><span class="Apple-converted-space">    </span>btnCloseSettings.addEventListener('click', () =&gt; settingsModal.classList.remove('active'));</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">    </span>// 靈敏度滑桿調整</p>
-<p class="p1"><span class="Apple-converted-space">    </span>sensitivitySlider.addEventListener('input', (e) =&gt; {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>sensitivityThreshold = parseInt(e.target.value);</p>
-<p class="p1"><span class="Apple-converted-space">      </span>sensitivityText.textContent = `${sensitivityThreshold}%`;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>thresholdLine.style.left = `${sensitivityThreshold}%`;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>localStorage.setItem(STORAGE_KEY_SENSITIVITY, sensitivityThreshold);</p>
-<p class="p1"><span class="Apple-converted-space">    </span>});</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">    </span>// 目標安靜時間選擇</p>
-<p class="p1"><span class="Apple-converted-space">    </span>timeButtons.forEach(btn =&gt; {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>btn.addEventListener('click', () =&gt; {</p>
-<p class="p1"><span class="Apple-converted-space">        </span>timeButtons.forEach(b =&gt; b.classList.remove('active'));</p>
-<p class="p1"><span class="Apple-converted-space">        </span>btn.classList.add('active');</p>
-<p class="p1"><span class="Apple-converted-space">        </span>targetTimeSeconds = parseInt(btn.dataset.time);</p>
-<p class="p1"><span class="Apple-converted-space">        </span>localStorage.setItem(STORAGE_KEY_TARGET_TIME, targetTimeSeconds);</p>
-<p class="p1"><span class="Apple-converted-space">      </span>});</p>
-<p class="p1"><span class="Apple-converted-space">    </span>});</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">    </span>// 歸零計數器</p>
-<p class="p1"><span class="Apple-converted-space">    </span>btnResetCounter.addEventListener('click', () =&gt; {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>if (confirm('確定要將成功發射次數歸零嗎？')) {</p>
-<p class="p1"><span class="Apple-converted-space">        </span>launchCount = 0;</p>
-<p class="p1"><span class="Apple-converted-space">        </span>localStorage.setItem(STORAGE_KEY_COUNT, 0);</p>
-<p class="p1"><span class="Apple-converted-space">        </span>counterDisplay.textContent = `🚀 x 0`;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>}</p>
-<p class="p1"><span class="Apple-converted-space">    </span>});</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">    </span>// 全螢幕切換</p>
-<p class="p1"><span class="Apple-converted-space">    </span>btnFullscreen.addEventListener('click', () =&gt; {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>if (!document.fullscreenElement) {</p>
-<p class="p1"><span class="Apple-converted-space">        </span>document.documentElement.requestFullscreen().catch(err =&gt; {</p>
-<p class="p1"><span class="Apple-converted-space">          </span>alert(`無法進入全螢幕：${err.message}`);</p>
-<p class="p1"><span class="Apple-converted-space">        </span>});</p>
-<p class="p1"><span class="Apple-converted-space">      </span>} else {</p>
-<p class="p1"><span class="Apple-converted-space">        </span>if (document.exitFullscreen) {</p>
-<p class="p1"><span class="Apple-converted-space">          </span>document.exitFullscreen();</p>
-<p class="p1"><span class="Apple-converted-space">        </span>}</p>
-<p class="p1"><span class="Apple-converted-space">      </span>}</p>
-<p class="p1"><span class="Apple-converted-space">    </span>});</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">    </span>// 執行初始 UI 設定</p>
-<p class="p1"><span class="Apple-converted-space">    </span>initUI();</p>
-<p class="p1"><span class="Apple-converted-space">  </span>&lt;/script&gt;</p>
-<p class="p1">&lt;/body&gt;</p>
-<p class="p1">&lt;/html&gt;</p>
+
+<!-- 背景動態光圈 -->
+<div class="bg-overlay" id="bgOverlay"></div>
+
+<!-- 麥克風錯誤提示 Banner (P0) -->
+<div class="error-banner" id="errorBanner">
+    ⚠️ <span id="errorText">無法取得麥克風權限，請確認權限設定後重新整理頁面。</span>
+</div>
+
+<!-- 頂部資訊列 (Header) -->
+<header>
+    <div class="launch-counter">
+        <span id="counterDisplay">🚀 x 0</span>
+        <button class="btn-reset-counter" id="btnResetCounter" title="重置計數器">歸零</button>
+    </div>
+    <div class="top-controls">
+        <button class="btn" id="btnMicInit">🎙️ 啟動麥克風</button>
+        <button class="btn" id="btnOpenSettings">⚙️ 設定</button>
+        <button class="btn" id="btnFullscreen">⛶ 全螢幕</button>
+    </div>
+</header>
+
+<!-- 中央主舞台 (Main Launchpad) -->
+<main>
+    <div class="countdown-overlay" id="countdownOverlay">3</div>
+    <div class="stage">
+        <div class="rocket-wrapper" id="rocketWrapper">
+            <!-- 原生 SVG 向量火箭繪製 -->
+            <svg class="rocket-svg" viewBox="0 0 100 140" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M50 10 C30 40 25 80 25 110 L75 110 C75 80 70 40 50 10 Z" fill="#E5E7EB"/>
+                <path d="M50 10 C38 28 32 45 30 55 L70 55 C68 45 62 28 50 10 Z" fill="#EF4444"/>
+                <circle cx="50" cy="70" r="12" fill="#1F2937" stroke="#9CA3AF" stroke-width="3"/>
+                <circle cx="50" cy="70" r="8" fill="#60A5FA"/>
+                <circle cx="47" cy="67" r="3" fill="#FFFFFF" opacity="0.8"/>
+                <path d="M25 85 L5 115 L25 110 Z" fill="#DC2626"/>
+                <path d="M75 85 L95 115 L75 110 Z" fill="#DC2626"/>
+                <rect x="38" y="110" width="24" height="8" rx="2" fill="#4B5563"/>
+            </svg>
+            <!-- 動態噴射火焰 -->
+            <div class="flame-container" id="flameContainer">
+                <div class="flame"></div>
+            </div>
+        </div>
+        <!-- 發射台底座 -->
+        <div class="launchpad-base"></div>
+    </div>
+    <!-- 狀態標籤與點火發射按鈕 (P0) -->
+    <div class="status-badge" id="statusBadge">等待啟動麥克風...</div>
+    <button class="btn-fire" id="btnFire">🚀 點火發射！</button>
+</main>
+
+<!-- 底部儀表區 (Footer) -->
+<footer>
+    <div class="gauges-container">
+        <!-- 即時音量計 -->
+        <div class="gauge-group">
+            <div class="gauge-label">
+                <span>🎤 教室即時音量</span>
+                <span id="volumeValue">0%</span>
+            </div>
+            <div class="progress-bar-bg">
+                <div class="threshold-line" id="thresholdLine" style="left: 30%;"></div>
+                <div class="volume-meter-fill" id="volumeMeter"></div>
+            </div>
+        </div>
+        <!-- 升空燃料進度條 -->
+        <div class="gauge-group">
+            <div class="gauge-label">
+                <span>⛽ 升空燃料累積</span>
+                <span id="fuelValue">0%</span>
+            </div>
+            <div class="progress-bar-bg">
+                <div class="progress-bar-fill" id="fuelMeter"></div>
+            </div>
+        </div>
+    </div>
+</footer>
+
+<!-- 設定控制彈窗 Modal -->
+<div class="modal-overlay" id="settingsModal">
+    <div class="modal-card">
+        <div class="modal-title">
+            ⚙️ 控制台設定
+            <button class="btn" id="btnCloseSettings" style="padding: 0.2rem 0.6rem;">✕</button>
+        </div>
+        <!-- 靈敏度門檻滑桿 (P0) -->
+        <div class="setting-item">
+            <div class="setting-label">
+                <span>麥克風安靜門檻 (靈敏度)</span>
+                <span id="sensitivityText" style="color: #fbbf24;">30%</span>
+            </div>
+            <input type="range" id="sensitivitySlider" min="5" max="80" value="30">
+            <span style="font-size: 0.8rem; color: #9ca3af;">音量大於此門檻算太吵，小於此門檻開始累積燃料。</span>
+        </div>
+        <!-- 目標安靜時間選擇 (P1) -->
+        <div class="setting-item">
+            <div class="setting-label">
+                <span>目標安靜時間 (集滿燃料)</span>
+            </div>
+            <div class="time-options">
+                <button class="btn-time" data-time="30">30 秒</button>
+                <button class="btn-time active" data-time="60">1 分鐘</button>
+                <button class="btn-time" data-time="120">2 分鐘</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 慶祝成功 Modal (P1) -->
+<div class="modal-overlay" id="celebrationModal">
+    <div class="modal-card celebration-modal">
+        <div class="celebration-title">🎉 發射成功！</div>
+        <p style="color: #d1d5db; font-size: 1.1rem; margin-bottom: 1.5rem;">
+            太棒了！大家維持了優良的安靜秩序，火箭已成功升空！
+        </p>
+        <button class="btn" id="btnNextRound" style="width: 100%; justify-content: center; padding: 0.8rem; background: var(--accent-green); font-size: 1.1rem;">
+            🔄 開啟下一輪任務
+        </button>
+    </div>
+</div>
+
+<script>
+/* ==========================================================================
+   1. 狀態變數與 localStorage 儲存管理 (P1)
+   ========================================================================== */
+const STORAGE_KEY_COUNT = 'rocket_launch_count';
+const STORAGE_KEY_SENSITIVITY = 'rocket_sensitivity';
+const STORAGE_KEY_TARGET_TIME = 'rocket_target_time';
+
+// 載入或使用預設設定
+let launchCount = parseInt(localStorage.getItem(STORAGE_KEY_COUNT)) || 0;
+let sensitivityThreshold = parseInt(localStorage.getItem(STORAGE_KEY_SENSITIVITY)) || 30;
+let targetTimeSeconds = parseInt(localStorage.getItem(STORAGE_KEY_TARGET_TIME)) || 60;
+
+let fuelPercent = 0; // 燃料百分比 0 ~ 100
+let isMicActive = false;
+let isReadyToLaunch = false;
+let isLaunching = false;
+
+// Web Audio API 物件參考
+let audioCtx = null;
+let analyser = null;
+let micStream = null;
+let dataArray = null;
+
+/* ==========================================================================
+   2. DOM 元件參考
+   ========================================================================== */
+const counterDisplay = document.getElementById('counterDisplay');
+const btnResetCounter = document.getElementById('btnResetCounter');
+const btnMicInit = document.getElementById('btnMicInit');
+const btnOpenSettings = document.getElementById('btnOpenSettings');
+const btnCloseSettings = document.getElementById('btnCloseSettings');
+const btnFullscreen = document.getElementById('btnFullscreen');
+const settingsModal = document.getElementById('settingsModal');
+const celebrationModal = document.getElementById('celebrationModal');
+const btnNextRound = document.getElementById('btnNextRound');
+const sensitivitySlider = document.getElementById('sensitivitySlider');
+const sensitivityText = document.getElementById('sensitivityText');
+const timeButtons = document.querySelectorAll('.btn-time');
+const volumeMeter = document.getElementById('volumeMeter');
+const volumeValue = document.getElementById('volumeValue');
+const thresholdLine = document.getElementById('thresholdLine');
+const fuelMeter = document.getElementById('fuelMeter');
+const fuelValue = document.getElementById('fuelValue');
+const bgOverlay = document.getElementById('bgOverlay');
+const statusBadge = document.getElementById('statusBadge');
+const flameContainer = document.getElementById('flameContainer');
+const rocketWrapper = document.getElementById('rocketWrapper');
+const btnFire = document.getElementById('btnFire');
+const countdownOverlay = document.getElementById('countdownOverlay');
+const errorBanner = document.getElementById('errorBanner');
+const errorText = document.getElementById('errorText');
+
+/* ==========================================================================
+   3. 初始化 UI 與恢復設定
+   ========================================================================== */
+function initUI() {
+    counterDisplay.textContent = `🚀 x ${launchCount}`;
+    sensitivitySlider.value = sensitivityThreshold;
+    sensitivityText.textContent = `${sensitivityThreshold}%`;
+    thresholdLine.style.left = `${sensitivityThreshold}%`;
+    timeButtons.forEach(btn => {
+        if (parseInt(btn.dataset.time) === targetTimeSeconds) {
+            btn.classList.add('active');
+        } else {
+            btn.classList.remove('active');
+        }
+    });
+}
+
+/* ==========================================================================
+   4. Web Audio API 音量偵測與例外處理 (P0 & P2)
+   ========================================================================== */
+async function startMic() {
+    try {
+        errorBanner.style.display = 'none';
+        // 請求麥克風權限
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+        micStream = stream;
+        // 建立 AudioContext 與 AnalyserNode
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const source = audioCtx.createMediaStreamSource(stream);
+        analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 256;
+        source.connect(analyser);
+        dataArray = new Uint8Array(analyser.frequencyBinCount);
+        isMicActive = true;
+        btnMicInit.style.display = 'none';
+        statusBadge.textContent = "🟢 系統運作中，請保持安靜...";
+        statusBadge.className = "status-badge charging";
+        // 啟動音量計算主迴圈
+        requestAnimationFrame(processAudio);
+    } catch (err) {
+        console.error("麥克風啟動失敗：", err);
+        if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+            errorText.textContent = "麥克風權限被拒絕，請允許存取麥克風後重新整理頁面。";
+        } else {
+            errorText.textContent = "未檢測到麥克風裝置，請確認已連接收音設備。";
+        }
+        errorBanner.style.display = 'flex';
+    }
+}
+
+/* ==========================================================================
+   5. 核心計算主迴圈 (包含安靜累積與緩慢倒扣邏輯) (P0)
+   ========================================================================== */
+let lastTime = performance.now();
+
+function processAudio(now) {
+    const deltaTime = (now - lastTime) / 1000; // 換算成秒數
+    lastTime = now;
+
+    if (isMicActive && !isReadyToLaunch && !isLaunching) {
+        // A. 計算當前 RMS 音量 (0~100%)
+        analyser.getByteFrequencyData(dataArray);
+        let sum = 0;
+        for (let i = 0; i < dataArray.length; i++) {
+            sum += dataArray[i];
+        }
+        let average = sum / dataArray.length;
+        let currentVolume = Math.min(100, Math.round((average / 128) * 100));
+
+        // B. 更新即時音量計
+        volumeMeter.style.width = `${currentVolume}%`;
+        volumeValue.textContent = `${currentVolume}%`;
+
+        // C. 判斷是否低於安靜門檻
+        const isQuiet = currentVolume <= sensitivityThreshold;
+
+        if (isQuiet) {
+            // --- 安靜狀態：集氣中 ---
+            volumeMeter.classList.remove('exceeded');
+            bgOverlay.className = 'bg-overlay charging';
+            statusBadge.textContent = "✨ 穩定集氣中...";
+            statusBadge.className = "status-badge charging";
+
+            // 火焰動態：越安靜，火焰越高
+            let quietnessRatio = (sensitivityThreshold - currentVolume) / sensitivityThreshold;
+            let flameHeight = 20 + quietnessRatio * 80; // 20px ~ 100px
+            flameContainer.style.height = `${flameHeight}px`;
+
+            // 燃料累積：(100 / 目標秒數) % / 秒
+            let gainRate = 100 / targetTimeSeconds;
+            fuelPercent = Math.min(100, fuelPercent + gainRate * deltaTime);
+        } else {
+            // --- 太吵狀態：燃料流失 ---
+            volumeMeter.classList.add('exceeded');
+            bgOverlay.className = 'bg-overlay warning';
+            statusBadge.textContent = "⚠️ 太吵囉！燃料流失中...";
+            statusBadge.className = "status-badge warning";
+
+            // 火焰縮小
+            flameContainer.style.height = '10px';
+
+            // 燃料流失：累積速度的一半 (流失完畢需 2 * targetTimeSeconds 秒)
+            let lossRate = 100 / (targetTimeSeconds * 2);
+            fuelPercent = Math.max(0, fuelPercent - lossRate * deltaTime);
+        }
+
+        // D. 更新燃料 UI
+        fuelMeter.style.width = `${fuelPercent}%`;
+        fuelValue.textContent = `${Math.floor(fuelPercent)}%`;
+
+        // E. 燃料滿 100% 觸發手動發射模式
+        if (fuelPercent >= 100) {
+            triggerReadyToLaunch();
+        }
+    }
+    requestAnimationFrame(processAudio);
+}
+
+/* ==========================================================================
+   6. 手動發射與 3-2-1 倒數流程 (P0)
+   ========================================================================== */
+function triggerReadyToLaunch() {
+    isReadyToLaunch = true;
+    statusBadge.textContent = "⚡ 燃料已集滿！準備發射！";
+    statusBadge.className = "status-badge ready";
+    btnFire.style.display = "block";
+    flameContainer.style.height = '120px'; // 最大發光火焰
+    bgOverlay.className = 'bg-overlay charging';
+    playBeepSound(880, 0.3, 'sine');
+}
+
+// 點擊「🚀 點火發射！」
+btnFire.addEventListener('click', () => {
+    btnFire.style.display = "none";
+    startCountdown();
+});
+
+// 3, 2, 1 倒數
+function startCountdown() {
+    let count = 3;
+    countdownOverlay.textContent = count;
+    countdownOverlay.classList.add('show');
+    playBeepSound(523.25, 0.15, 'sine');
+
+    const timer = setInterval(() => {
+        count--;
+        if (count > 0) {
+            countdownOverlay.textContent = count;
+            playBeepSound(523.25, 0.15, 'sine');
+        } else if (count === 0) {
+            countdownOverlay.textContent = "🚀";
+            playBeepSound(1046.5, 0.4, 'triangle');
+        } else {
+            clearInterval(timer);
+            countdownOverlay.classList.remove('show');
+            executeLaunch();
+        }
+    }, 1000);
+}
+
+// 執行火箭升空
+function executeLaunch() {
+    isLaunching = true;
+    statusBadge.textContent = "🔥 火箭升空！";
+    rocketWrapper.classList.add('launching');
+    playRocketEngineSound(3.0); // 播放 3 秒實時合成火箭引擎聲
+
+    setTimeout(() => {
+        // 發射成功次數累計
+        launchCount++;
+        localStorage.setItem(STORAGE_KEY_COUNT, launchCount);
+        counterDisplay.textContent = `🚀 x ${launchCount}`;
+        // 跳出慶祝視窗
+        celebrationModal.classList.add('active');
+    }, 2500);
+}
+
+// 開啟下一輪任務 (P1)
+btnNextRound.addEventListener('click', () => {
+    celebrationModal.classList.remove('active');
+    // 重置火箭位置與變數
+    rocketWrapper.classList.remove('launching');
+    fuelPercent = 0;
+    fuelMeter.style.width = '0%';
+    fuelValue.textContent = '0%';
+    flameContainer.style.height = '0px';
+    isReadyToLaunch = false;
+    isLaunching = false;
+    statusBadge.textContent = "🟢 系統運作中，請保持安靜...";
+    statusBadge.className = "status-badge charging";
+});
+
+/* ==========================================================================
+   7. Web Audio API 音效實時合成 (無外部檔案相依) (P0)
+   ========================================================================== */
+// 嗶嗶聲與警示音合成
+function playBeepSound(freq, duration, type = 'sine') {
+    if (!audioCtx) return;
+    try {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = type;
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + duration);
+    } catch(e) {}
+}
+
+// 粉紅噪音 (Pink Noise) + 低通濾波器模擬火箭引擎轟鳴聲
+function playRocketEngineSound(duration) {
+    if (!audioCtx) return;
+    try {
+        const bufferSize = audioCtx.sampleRate * duration;
+        const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+        const output = buffer.getChannelData(0);
+
+        // 粉紅噪音生成演算法
+        let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
+        for (let i = 0; i < bufferSize; i++) {
+            let white = Math.random() * 2 - 1;
+            b0 = 0.99886 * b0 + white * 0.0555179;
+            b1 = 0.99332 * b1 + white * 0.0750759;
+            b2 = 0.96900 * b2 + white * 0.1538520;
+            b3 = 0.86650 * b3 + white * 0.3104856;
+            b4 = 0.55000 * b4 + white * 0.5329522;
+            b5 = -0.7616 * b5 - white * 0.0168980;
+            output[i] = b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362;
+            output[i] *= 0.11;
+            b6 = white * 0.115926;
+        }
+
+        const whiteNoise = audioCtx.createBufferSource();
+        whiteNoise.buffer = buffer;
+
+        // 動態低通濾波器 (Low-pass Filter)
+        const filter = audioCtx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(300, audioCtx.currentTime);
+        filter.frequency.linearRampToValueAtTime(800, audioCtx.currentTime + 1.0);
+        filter.frequency.exponentialRampToValueAtTime(50, audioCtx.currentTime + duration);
+
+        const gain = audioCtx.createGain();
+        gain.gain.setValueAtTime(0.5, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+
+        whiteNoise.connect(filter);
+        filter.connect(gain);
+        gain.connect(audioCtx.destination);
+        whiteNoise.start();
+    } catch(e) {}
+}
+
+/* ==========================================================================
+   8. 控制介面與全螢幕事件處置 (P1 & P2)
+   ========================================================================== */
+btnMicInit.addEventListener('click', startMic);
+btnOpenSettings.addEventListener('click', () => settingsModal.classList.add('active'));
+btnCloseSettings.addEventListener('click', () => settingsModal.classList.remove('active'));
+
+// 靈敏度滑桿調整
+sensitivitySlider.addEventListener('input', (e) => {
+    sensitivityThreshold = parseInt(e.target.value);
+    sensitivityText.textContent = `${sensitivityThreshold}%`;
+    thresholdLine.style.left = `${sensitivityThreshold}%`;
+    localStorage.setItem(STORAGE_KEY_SENSITIVITY, sensitivityThreshold);
+});
+
+// 目標安靜時間選擇
+timeButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+        timeButtons.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        targetTimeSeconds = parseInt(btn.dataset.time);
+        localStorage.setItem(STORAGE_KEY_TARGET_TIME, targetTimeSeconds);
+    });
+});
+
+// 歸零計數器
+btnResetCounter.addEventListener('click', () => {
+    if (confirm('確定要將成功發射次數歸零嗎？')) {
+        launchCount = 0;
+        localStorage.setItem(STORAGE_KEY_COUNT, 0);
+        counterDisplay.textContent = `🚀 x 0`;
+    }
+});
+
+// 全螢幕切換
+btnFullscreen.addEventListener('click', () => {
+    if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(err => {
+            alert(`無法進入全螢幕：${err.message}`);
+        });
+    } else {
+        if (document.exitFullscreen) {
+            document.exitFullscreen();
+        }
+    }
+});
+
+// 執行初始 UI 設定
+initUI();
+</script>
+
 </body>
 </html>
